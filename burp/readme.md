@@ -8,4 +8,4 @@
     3. 支持fastjson 1.2.24 Tomcatecho ,检测后，发送到Repeater 中，便可以利用。
     4. 存在攻击行为，非法使用后果自负！！！！
 
-![](微信截图_20210118170804.png)
+![](https://github.com/zilong3033/tools/blob/master/burp/%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_20210118170804.png)
