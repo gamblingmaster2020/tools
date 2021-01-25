@@ -12,5 +12,5 @@
 
 
 ##### burp 常用类
-   dnslog.class 使用dnslog记录，burp的dnslog容易被封掉
-   CustomScanIssue.java     Issue自定义类
+   1. dnslog.class 使用dnslog记录，burp的dnslog容易被封掉
+   2. CustomScanIssue.java     Issue自定义类
