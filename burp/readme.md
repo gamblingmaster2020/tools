@@ -9,3 +9,8 @@
     4. 存在攻击行为，非法使用后果自负！！！！
 
 ![](%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_20210118170804.png)
+
+
+##### burp 常用类
+   dnslog.class 使用dnslog记录，burp的dnslog容易被封掉
+   CustomScanIssue.java     Issue自定义类
