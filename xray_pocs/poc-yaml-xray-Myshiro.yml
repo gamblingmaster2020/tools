@@ -1,0 +1,8 @@
+name: poc-yaml-myshiro
+rules:
+  - method: GET
+    headers: 
+      Cookie: rememberMe=1
+    expression: |
+      'Set-Cookie' in response.headers && response.headers['Set-Cookie'].contains("deleteMe")
+  
