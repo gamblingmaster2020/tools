@@ -11,7 +11,7 @@ monkey.patch_all()   #打补丁，使所有IO延迟异步
 
 import threading
 import queue
-import sys, time, re,traceback,subprocess,os
+import sys, time, re,traceback,subprocess,os,datetime
 import requests
 import chardet
 import optparse
@@ -26,6 +26,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 lock = threading.Lock()
 
 count=[]
+port_status={}
 
 webports = "80,443,8080,81,82,83,84,85,88,8000,8010,8050,808,8880,8888,8443,8081,8161,8090,9443,7002,7001,8088,18080,18088,8082,8083,18443,9090,9080,6443,7443,8001,8002,9000,9001,8082"
 
@@ -54,6 +55,7 @@ def check_url(ip, port):
             except:
                 pass
             code = r.status_code
+            contents=r.content
         # print code
         if code == 301 or code == 302:
             with requests.get(url, headers=headers, verify=False, timeout=TIMEOUT) as s:
@@ -86,14 +88,45 @@ def check_url(ip, port):
                     # add_web(url,code,banner,title)
 
         else:
-            lock.acquire()
-            try:
-                print("%-30s %-6s %-20s %-30s " % (url, code, banner, title))
-                f = open(fw, 'a').write("%-30s %-6s %-20s %-30s \n" % (url, code, banner, title))
-                open(fu, 'a').write(url + "\n")
-            finally:
-                lock.release()
-                # add_web(url,code,banner,title)
+            if code==400 and "400 The plain HTTP request was sent to HTTPS port" in contents.decode():
+                url="https:\\"+ip+":"+str(port)
+                with requests.get(url, headers=headers, verify=False, timeout=TIMEOUT) as s:
+                    s_detectencode = chardet.detect(s.content)
+                    actual_encode = s_detectencode['encoding']
+                    contents=s.content
+                try:
+                    if contents:
+                        title1 = re.search('<title>(.*?)</title>', contents.decode(actual_encode), re.S | re.I)
+                    if title1:
+                        title1 = title1.groups()[0].replace('\r\n', '').replace('\n', '')
+                    else:
+                        title1 = None
+                    lock.acquire()
+                    try:
+                        print("%-30s %-6s %-20s %-30s " % (url, code, banner, title1))
+                        f = open(fw, 'a').write("%-30s %-6s %-20s %-30s %30s \n" % (url, code, banner, title1, str(s.url)))
+                        open(fu,'a').write(url+"\n")
+                    finally:
+                        lock.release()
+                        # add_web(url,code,banner,title1)
+                except Exception as e:
+                    # traceback.print_exc()
+                    lock.acquire()
+                    try:
+                        f = open(fw, 'a').write("%-30s %-6s %-20s %-30s %30s \n" % (url, code, banner, title1, str(s.url)))
+                        open(fu, 'a').write(url + "\n")
+                    finally:
+                        lock.release()
+                        # add_web(url,code,banner,title)
+            else:
+                lock.acquire()
+                try:
+                    print("%-30s %-6s %-20s %-30s " % (url, code, banner, title))
+                    f = open(fw, 'a').write("%-30s %-6s %-20s %-30s \n" % (url, code, banner, title))
+                    open(fu, 'a').write(url + "\n")
+                finally:
+                    lock.release()
+                    # add_web(url,code,banner,title)
     except Exception as e:
         #traceback.print_exc()
         if re.search("SSL", str(e)):
@@ -164,6 +197,26 @@ class scan():
             except Exception as e:
                 traceback.print_exc()
                 pass
+            # 段点续扫，保存已扫描完成的ip到bak文件
+            lock.acquire()
+            fb = open(urlfile + ".bak", "a+")
+            fb_iplist = fb.readlines()
+            fb.close()
+            if port_status.get(iport[0])==None:
+                port_status[iport[0]]=1
+            else:
+                #print(iport[0]+":\t"+str(port_status[iport[0]]))
+                if iport[0] not in fb_iplist:
+                    port_status[iport[0]]+=1
+                    #所有端口探测完毕
+                    if port_status[iport[0]]>=len(ports):
+                        fb = open(urlfile + ".bak", "a")
+                        port_status.pop(iport[0])
+                        fb.write(iport[0] + "\n")
+                        fb.close()
+                else:
+                    fb.close()
+            lock.release()
 
     def run(self):
         try:
@@ -221,7 +274,7 @@ if __name__ == '__main__':
                       default="80,443,8080,81,82,83,84,85,88,8000,8010,8050,808,8880,8888,8443,8081,8161,8090,9443,7002,7001,8088,18080,18088,8082,8083,18443,9090,9080,6443,7443,8001,8002,9000,9001,8082",
                       type='string',
                       help='the ports you want to scan,default ports (80,443,8080,81,82,88,8000,8010,8050,808,8880,8888,8443,8081,8161,8090,9443,7002,7001,8088,18080,18088,8082,8083,18443)')
-    parser.add_option('-o', '--output', dest="outfile", default="result.txt", help="default output result.txt")
+    parser.add_option('-o', '--output', dest="outfile", default="result", help="default output result.txt")
 
     if sys.platform=="linux":
         #由于linux打开文件数默认1024，修改大点，有利于并发，这里不生效需要手动改
@@ -233,7 +286,7 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(0)
     start_t = time.time()
-    fw = options.outfile+str(datetime.datetime.now().strftime('%m%d%H'))+".txt"
+    fw = options.outfile+"-"+str(datetime.datetime.now().strftime('%m%d%H'))+".txt"
     fu="urls-"+str(datetime.datetime.now().strftime('%m%d%H'))+".txt"
     THREADS_NUM = options.threads
     TIMEOUT = options.timeout
@@ -249,11 +302,24 @@ if __name__ == '__main__':
             l1.append(options.ips.strip())
     else:
         f = open(sys.argv[1], 'r').readlines()
+
+        # 断点续扫
+        urlfile = sys.argv[1]
+        if urlfile and os.path.exists(urlfile + ".bak"):
+            fb = open(urlfile + ".bak", "r")
+            ips_bak = fb.readlines()
+            for ip in ips_bak:
+                if ip in f:
+                    f.remove(ip)
+        else:
+            fb=open(urlfile + ".bak", "w")
         l1 = []
         for i in f:
             l1.append(i.strip())
     l2 = list(set(l1))
     print(len(l2))
+    
+
 
     #端口处理
     ports = options.ports
